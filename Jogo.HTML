@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jogo 2D - Clique no Alvo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        .game-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            background: radial-gradient(circle at center, rgba(255,255,255,0.1) 0%, transparent 70%);
+        }
+
+        .game-header {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            text-align: center;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .score {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .timer {
+            font-size: 1.5em;
+            color: #ffeb3b;
+        }
+
+        .target {
+            position: absolute;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            border: 3px solid rgba(255,255,255,0.8);
+        }
+
+        .target:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+
+        .target.clicked {
+            animation: explode 0.5s ease-out forwards;
+        }
+
+        @keyframes explode {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.5);
+                opacity: 0.7;
+            }
+            100% {
+                transform: scale(2);
+                opacity: 0;
+            }
+        }
+
+        .target.appear {
+            animation: appear 0.3s ease-out;
+        }
+
+        @keyframes appear {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            z-index: 200;
+            display: none;
+        }
+
+        .game-over h2 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            color: #ffeb3b;
+        }
+
+        .game-over p {
+            font-size: 1.2em;
+            margin-bottom: 30px;
+        }
+
+        .restart-btn {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.1em;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .restart-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+
+        .particles {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #ffeb3b;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: particle 1s ease-out forwards;
+        }
+
+        @keyframes particle {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(0);
+                opacity: 0;
+            }
+        }
+
+        .instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            text-align: center;
+            font-size: 1.1em;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-header">
+            <div class="score">Pontos: <span id="score">0</span></div>
+            <div class="timer">Tempo: <span id="timer">30</span>s</div>
+        </div>
+
+        <div class="game-over" id="gameOver">
+            <h2>Fim do Jogo!</h2>
+            <p>Você fez <span id="finalScore">0</span> pontos!</p>
+            <button class="restart-btn" onclick="restartGame()">Jogar Novamente</button>
+        </div>
+
+        <div class="instructions">
+            Clique nos círculos coloridos que aparecem na tela!
+        </div>
+    </div>
+
+    <script>
+        let score = 0;
+        let timeLeft = 30;
+        let gameActive = true;
+        let targetCount = 0;
+
+        const colors = [
+            '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', 
+            '#feca57', '#ff9ff3', '#54a0ff', '#5f27cd'
+        ];
+
+        function updateScore() {
+            document.getElementById('score').textContent = score;
+        }
+
+        function updateTimer() {
+            document.getElementById('timer').textContent = timeLeft;
+        }
+
+        function createTarget() {
+            if (!gameActive) return;
+
+            const target = document.createElement('div');
+            target.className = 'target appear';
+            
+            // Tamanho aleatório entre 40px e 80px
+            const size = Math.random() * 40 + 40;
+            target.style.width = size + 'px';
+            target.style.height = size + 'px';
+            
+            // Cor aleatória
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            target.style.backgroundColor = color;
+            
+            // Posição aleatória
+            const x = Math.random() * (window.innerWidth - size);
+            const y = Math.random() * (window.innerHeight - size - 100) + 50;
+            target.style.left = x + 'px';
+            target.style.top = y + 'px';
+            
+            // Adicionar evento de clique
+            target.addEventListener('click', function() {
+                if (!gameActive) return;
+                
+                score += Math.floor(100 / (size / 20)); // Pontos baseados no tamanho
+                updateScore();
+                
+                // Efeito de explosão
+                target.classList.add('clicked');
+                createParticles(x + size/2, y + size/2);
+                
+                setTimeout(() => {
+                    target.remove();
+                }, 500);
+            });
+            
+            document.querySelector('.game-container').appendChild(target);
+            targetCount++;
+            
+            // Remover alvo após 3 segundos se não clicado
+            setTimeout(() => {
+                if (target.parentNode) {
+                    target.remove();
+                }
+            }, 3000);
+        }
+
+        function createParticles(x, y) {
+            for (let i = 0; i < 8; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particles';
+                particle.style.left = x + 'px';
+                particle.style.top = y + 'px';
+                
+                // Direção aleatória
+                const angle = (Math.PI * 2 * i) / 8;
+                const distance = Math.random() * 50 + 20;
+                const endX = x + Math.cos(angle) * distance;
+                const endY = y + Math.sin(angle) * distance;
+                
+                particle.style.setProperty('--endX', endX + 'px');
+                particle.style.setProperty('--endY', endY + 'px');
+                
+                document.querySelector('.game-container').appendChild(particle);
+                
+                setTimeout(() => {
+                    particle.remove();
+                }, 1000);
+            }
+        }
+
+        function gameLoop() {
+            if (!gameActive) return;
+            
+            // Criar novo alvo a cada 1-2 segundos
+            if (Math.random() < 0.3) {
+                createTarget();
+            }
+            
+            setTimeout(gameLoop, 100);
+        }
+
+        function countdown() {
+            if (timeLeft > 0 && gameActive) {
+                timeLeft--;
+                updateTimer();
+                setTimeout(countdown, 1000);
+            } else {
+                endGame();
+            }
+        }
+
+        function endGame() {
+            gameActive = false;
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('gameOver').style.display = 'block';
+            
+            // Remover todos os alvos restantes
+            const targets = document.querySelectorAll('.target');
+            targets.forEach(target => target.remove());
+        }
+
+        function restartGame() {
+            score = 0;
+            timeLeft = 30;
+            gameActive = true;
+            targetCount = 0;
+            
+            updateScore();
+            updateTimer();
+            document.getElementById('gameOver').style.display = 'none';
+            
+            // Reiniciar loops
+            gameLoop();
+            countdown();
+        }
+
+        // Iniciar jogo
+        updateScore();
+        updateTimer();
+        gameLoop();
+        countdown();
+
+        // Adicionar efeito de cursor personalizado
+        document.addEventListener('mousemove', function(e) {
+            const cursor = document.querySelector('body');
+            cursor.style.cursor = 'crosshair';
+        });
+    </script>
+</body>
+</html>
